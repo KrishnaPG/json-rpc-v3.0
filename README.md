@@ -12,8 +12,8 @@ Compared to JSON-RPC 2.0, this version introduces:
 
 #### Repo
 This repo contains: 
-  - a Typescript implementation for reference, and
-  - JSON-Schema for message validation.
+  - a [Typescript implementation](json-rpc.ts) for reference, and
+  - [JSON-Schema](jsonrpc-3.0.schema.json) file for message validation.
 
 ---
 
