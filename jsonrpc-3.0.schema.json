@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", 
+  "$id": "https://cenacle-research.com/schemas/jsonrpc-3.0.schema.json", 
+  "title": "JSON-RPC 3.0 Message Schema",
+  "description": "Schema to validate JSON-RPC 3.0 request and response messages, including streaming and enhanced error handling.",
+  "oneOf": [
+    { "$ref": "#/definitions/JsonRpcRequest" },
+    { "$ref": "#/definitions/JsonRpcSuccessResponse" },
+    { "$ref": "#/definitions/JsonRpcErrorResponse" },
+    { "$ref": "#/definitions/JsonRpcAck" },
+    { "$ref": "#/definitions/JsonRpcStreamData" },
+    { "$ref": "#/definitions/JsonRpcStreamDone" },
+    { "$ref": "#/definitions/JsonRpcStreamError" }
+  ],
+
+  "definitions": {
+    "JsonRpcVersion": {
+      "type": "string",
+      "enum": ["2.0", "3.0"]
+    },
+
+    "JsonRpcId": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "null" }
+      ],
+      "description": "Correlation ID for matching requests and responses."
+    },
+
+    "ErrorCode": {
+      "type": "integer",
+      "enum": [
+        400, 401, 402, 403, 404, 405, 408, 409, 425, 429,
+        500, 501, 503, 521,
+        -32600, -32601, -32602, -32603, -32700,
+        -32800,
+        -32001, -32003, -32004, -32005, -32008, -32009,
+        -32012, -32013, -32029, -32030,
+        -32040, -32041, -32042
+      ],
+      "description": "Standardized error codes as per JSON-RPC 3.0 specification."
+    },
+
+    "ErrorContext": {
+      "type": "object",
+      "required": ["code", "title"],
+      "properties": {
+        "code": { "$ref": "#/definitions/ErrorCode" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "data": {}
+      },
+      "additionalProperties": false
+    },
+
+    "BaseJsonRpcMessage": {
+      "type": "object",
+      "required": ["jsonrpc"],
+      "properties": {
+        "jsonrpc": { "$ref": "#/definitions/JsonRpcVersion" }
+      },
+      "additionalProperties": false
+    },
+
+    "JsonRpcRequest": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["method"],
+          "properties": {
+            "method": { "type": "string" },
+            "params": {},
+            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "options": {
+              "type": "object",
+              "properties": {
+                "stream": {
+                  "type": ["boolean", "string", "number"],
+                  "description": "Whether this request expects a streaming response, optionally with an ID."
+                },
+                "abort": {
+                  "type": "boolean",
+                  "description": "Set to true to abort an ongoing stream."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "if": {
+            "properties": { "options": { "type": "object" } },
+            "required": ["options"]
+          }
+        }
+      ]
+    },
+
+    "JsonRpcSuccessResponse": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["result"],
+          "properties": {
+            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "result": {}
+          },
+          "oneOf": [
+            { "required": ["id"] },
+            { "not": { "required": ["id"] } }
+          ]
+        }
+      ]
+    },
+
+    "JsonRpcErrorResponse": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["error"],
+          "properties": {
+            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "error": { "$ref": "#/definitions/ErrorContext" }
+          },
+          "oneOf": [
+            { "required": ["id"] },
+            { "not": { "required": ["id"] } }
+          ]
+        }
+      ]
+    },
+
+    "JsonRpcAck": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["ack", "id"],
+          "properties": {
+            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "ack": {}
+          }
+        }
+      ]
+    },
+
+    "JsonRpcStreamData": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["stream"],
+          "properties": {
+            "stream": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "$ref": "#/definitions/JsonRpcId" },
+                "data": {}
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+
+    "JsonRpcStreamDone": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["stream", "result"],
+          "properties": {
+            "stream": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "$ref": "#/definitions/JsonRpcId" }
+              },
+              "additionalProperties": false
+            },
+            "result": {}
+          }
+        }
+      ]
+    },
+
+    "JsonRpcStreamError": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        {
+          "type": "object",
+          "required": ["stream", "error"],
+          "properties": {
+            "stream": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "$ref": "#/definitions/JsonRpcId" }
+              },
+              "additionalProperties": false
+            },
+            "error": { "$ref": "#/definitions/ErrorContext" }
+          }
+        }
+      ]
+    }
+  }
+}
