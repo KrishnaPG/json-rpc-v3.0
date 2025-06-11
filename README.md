@@ -10,7 +10,10 @@ Compared to JSON-RPC 2.0, this version introduces:
 - Support for **streaming responses**
 - Structured **acknowledgement** responses
 
-This repo contains a Typescript implementation for reference. 
+#### Repo
+This repo contains: 
+  - a Typescript implementation for reference, and
+  - JSON-Schema for message validation.
 
 ---
 
