@@ -15,6 +15,10 @@ This repo contains:
   - a [Typescript implementation](json-rpc.ts) for reference, and
   - [JSON-Schema](jsonrpc-3.0.schema.json) file for message validation.
 
+#### NPM Package
+Available at: [https://www.npmjs.com/package/@fict/json-rpc](https://www.npmjs.com/package/@fict/json-rpc)
+  - install with `npm install @fict/json-rpc`
+
 ---
 
 ## 1. Conformance
