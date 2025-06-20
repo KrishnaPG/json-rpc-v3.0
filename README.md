@@ -70,11 +70,11 @@ All messages are encoded using JSON and follow strict schema definitions.
 
 ### 4.1 Base Request
 
-```json
+```json5
 {
   "jsonrpc": "3.0",
   "method": "example.method",
-  "params": { /* parameters object or array */ },
+  "params": { /* parameters object, if any */ },
   "id": 1
 }
 ```
@@ -88,11 +88,11 @@ All messages are encoded using JSON and follow strict schema definitions.
 
 ### 4.2 Stream Request
 
-```json
+```json5
 {
   "jsonrpc": "3.0",
   "method": "subscribe.stream",
-  "params": { /* parameters object or array */ },
+  "params": { /* parameters object */ },
   "id": 1,
   "options": {
     "stream": true
@@ -100,8 +100,63 @@ All messages are encoded using JSON and follow strict schema definitions.
 }
 ```
 
-- The `options` object allows specifying additional behavior like streaming.
+- The `options` object allows specifying additional behavior like streaming, the output format expected etc. that give hint to the server on what the requestor is expecting (through Extensions, see below).
 - When `stream: true`, the server MAY respond with one or more `stream`-tagged messages.
+
+#### Stream Abort Request
+The stream abort request can be implemented at the application level like any other method, since only the applications know how to stop / cancel the stream. The application can designate a method as the cancel method, for example `request.cancel`, and the requestor can issue a new request as below:
+
+```json5
+{
+  "jsonrpc": "3.0",
+  "method": "request.cancel",
+  "params": { "stream": true, "id": "...<the original stream request id>" }
+}
+```
+Then the application has to handle this method and cancel the ongoing stream requests.
+
+Alternately, when `Option Extensions` are supported, the `options` object may be used to request abort for an ongoing stream.
+```json5
+{
+  "jsonrpc": "3.0",
+  "options": {
+    "stream": "...<stream id>...",
+    "abort": true
+  }
+}
+```
+The `Option Extensions`, however, is implementation specific and both the requestor and responder may need to have them enabled and negotiated apriori at the time of connection.
+
+### 4.3 Request Extensions
+The protocol allows custom extentions to the `options` and `stream` parameters. The requestor and responder may use custom discovery RPC methods at the start of the communication to negotiate which extensions are supported by each other.
+- When the protocol supports `Option Extensions`, the `options` object could be used to convey additional details on what the requestor is expecting. For example, `Encrypted Responses` extension request:
+  ```json
+  {
+    "jsonrpc": "3.0",
+    "method": "account.balance",
+    "id": 1,
+    "options": {
+        "encrypt": true,
+        "publicKeyB64": "...."
+      }
+  }
+  ```
+  The above request is asking the server to send (non-stream) result, in encrypted format using the requestor's given publicKey.
+  The difference between `params` and `options` is that `options` works at the meta level that controls the behavior of the server on how to execute and respond the method, where as `params` are direct input to the method. The `options` are interepreted by the server and thus may change how a method is invoked, where as the `options` are to be transparently passed on to the method without affecting the server. Retries, Auth credentials, launching a serverless host to run the method etc. that are beyond the scope of the method are better conveyed through `options` than `params`, keeping the method implementation clean and focused.
+- When the protocol supports `Stream Extensions`, the `stream` could be an object holding additional custom parameters specific to the implementation. e.g. `Encrypted Stream` extention request:
+  ```json
+  {
+    "jsonrpc": "3.0",
+    "method": "subscribe.stream",
+    "id": 1,
+    "options": {
+      "stream": {
+        "encrypt": true,
+        "publicKeyB64": "...."
+      }
+    }
+  }
+  ``` 
 
 ---
 
@@ -138,13 +193,15 @@ All messages are encoded using JSON and follow strict schema definitions.
 
 | Field   | Type   | Description |
 |---------|--------|-------------|
-| `code`  | Integer | Standardized error code. |
-| `title` | String  | Short summary of the error type. |
+| `code`  | Integer | Standardized error code. Useful for programmatic comparisions. |
+| `title` | String  | Short summary of the error type. Useful for UI notifications. |
 | `message` | String | Human-readable explanation. |
 | `data`  | Any     | Optional additional information. |
 
-### 5.3 Acknowledgment Response
+The `data` field may hold additional errors (recursive) or stack trace etc., based on the implementation.
 
+### 5.3 Acknowledgment Response for Async Requests
+After receiving a (non-stream) request, the server may choose to send an `ack` response before sending the final `result` or `error` response.
 ```json
 {
   "jsonrpc": "3.0",
@@ -152,9 +209,40 @@ All messages are encoded using JSON and follow strict schema definitions.
   "id": 1
 }
 ```
-
 - Sent by the server to indicate it has received the request and will process it asynchronously.
 - Useful for long-running operations or queued tasks.
+- When `Acknolwedgement Extensions` are supported, the `ack` object may hold additional details on when, where, how to access the result (or the progress) of the request. For example, the below response returns an acknowledgement with a background `jobId`, where to query for the progress and result, and the `ttl` (how long the result will be available).
+  ```json
+  {
+    "jsonrpc": "3.0",
+    "ack": {
+      "jobId": "...",
+      "jobQ": {
+        "url": "...",
+        "ttl": "..."
+      }
+    },
+    "id": 1
+  }
+  ```
+This makes it possible to implement decentralized P2P request / response systems, where the request is received by one node, but the results will become available on another node asynchronously.
+
+#### Multiple Ack responses
+It is also possible that `ack` responses may be received multiple times before a final `result` or `error` response is seen. 
+
+- When `Acknolwdgement Extensions` are supported, the `ack` object may hold additional details that indicate the progress, such as:
+```json
+{
+  "jsonrpc": "3.0",
+  "ack": { "progress": 18, "total": 230 },
+  "id": 1
+}
+```
+In this case, the `ack` may be received multiple times, which the requestors can use to reset the request timeout so that long running requests do not timeout early.
+
+- Irrespective of single `ack` or multiple `ack` responses, the requestor is free to ignore them and continue to wait for the final `result` or `error`.
+
+The receiver SHOULD not respond to the `ack` responses, except for may be cancelling the request (by making a new method request that triggers the cancel of current running requests, which is implementation specific).
 
 ---
 
@@ -191,7 +279,7 @@ Streaming responses allow the server to return partial results incrementally.
 
 - Indicates the stream has completed successfully.
 
-### 6.3 Stream Error
+### 6.3 Stream Errored
 
 ```json
 {
@@ -209,7 +297,7 @@ Streaming responses allow the server to return partial results incrementally.
 
 - Indicates the stream was terminated due to an error or cancellation.
 
-### 6.4 Stream Abort
+### 6.4 Stream Aborted 
 
 ```json
 {
@@ -226,6 +314,46 @@ Streaming responses allow the server to return partial results incrementally.
 ```
 
 - A special case of `StreamError` indicating client-initiated abortion.
+
+
+### 6.5 Ack Response for Async Streams
+When a stream request is received, the responder may choose to first send an `ack` before actually start sending the stream responses. This is specifically useful when the request or stream setup takes time (e.g. LLM responses, Video transformation streams etc.).
+```json5
+{
+  "jsonrpc": "3.0",
+  "ack": {
+    "id": 1 /** the stream request id */
+  },
+}
+```
+Note that for stream acknowledgements, the request `id` should be inside the `ack` object and should not be mentioned at the root level (unlike the `ack` for `Async Requests` where the `id` is mentioned at the root level). 
+
+- When `Acknowledgement Extensions` are supported, the `ack` object may offer additional functionality, such as `async streams` that have different `id` than the original request id, and more functionality such as stream from different sources etc. For example,
+```json5
+{
+  "jsonrpc": "3.0",
+  "ack": {
+    "id": "a31dbae" /** the original stream request id */
+    "stream": {
+      "id": "fxr2t6", /** the id the stream response will be using to send data and results */
+      "pubServer": {
+        "host": "...",
+        "port": "...",
+        "topic": "..."
+      },
+      "encryption": {
+        "publicKeyB64": "..."
+      }
+    }
+  },
+}
+```
+The above response is acknowledging that a stream request with id `a31dbae` is received and that the response stream will be available in encrypted from from a PubSub server at the specified host, port, topic with a stream id `fxr2t6`.
+
+- Note that for normal streams the request id and the response stream id both will be the same, where as for `async streams` the response stream id may be different from the original request id. 
+
+This kind of mechanism allows to implement privacy preserving streams on public P2P networks. The requestor sends a stream request that everyone can see with a request id, and the responder returns a new stream ID that is encrypted and only the requestor can decrypt, and the actual stream will be publicly available in encrypted form on PUB-SUB channels for everyone to see but only the original requestor knows the correct ID to consume the correct stream.
+
 
 ---
 
@@ -299,6 +427,37 @@ Implementers should consider:
 <-- {"jsonrpc": "3.0", "result": 3, "id": 1}
 ```
 
+#### 11.1.1 Multiple Regular Requests / Responses
+
+```
+--> {"jsonrpc": "3.0", "method": "add", "params": [1, 2], "id": 1}
+--> {"jsonrpc": "3.0", "method": "add", "params": [5, 4], "id": 2}
+<-- {"jsonrpc": "3.0", "result": 9, "id": 2}
+<-- {"jsonrpc": "3.0", "result": 3, "id": 1}
+```
+Order is not guaranteed for responses. Responses may arrive in any order and need not be same as the order of the requests.
+
+#### 11.1.2 Async Request / Response
+
+```
+--> {"jsonrpc": "3.0", "method": "add", "params": [1, 2], "id": 1}
+<-- {"jsonrpc": "3.0", "ack": {}, "id": 1}
+    /** after a long time */
+<-- {"jsonrpc": "3.0", "result": 3, "id": 1}
+```
+
+#### 11.1.3 Async Request / Response in Decentralized P2P Mode (with extensions)
+
+```
+--> {"jsonrpc": "3.0", "method": "add", "params": [1, 2], "id": 1}
+<-- {"jsonrpc": "3.0", "ack": { "jobId": "a2xi87", "jobQ": { url: "q.hwwer8.io", "authToken": "1xsd2", "ttl": "36h" } }, "id": 1}
+```
+Upon receiving the above `ack` the  requestor connects to the jobQ (using the above url, authToken) to query the progress and fetche the results when available. 
+```
+--> /** send request to the jobQ url to get the result through appropriate methods */
+<-- {"jsonrpc": "3.0", "result": 3, "id": 1}
+```
+
 ### 11.2 Stream Request / Responses
 
 ```
@@ -308,6 +467,22 @@ Implementers should consider:
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "result": "End of logs"}
 ```
 
+### 11.2.1 Multiple Stream Request / Responses
+
+```
+--> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
+--> {"jsonrpc": "3.0", "method": "listen.errors", "params": {}, "id": 5, "options": {"stream": true}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 1"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 3"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "result": "End of logs for Stream 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 3"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 5"}
+```
+Multiple stream could be active at the same time, and stream responses may arrive in any order. The order of stream data chunks within a single stream, however, depends on the channel being used. For TCP based connections, such as Websocket etc., the stream responses will arrive in the same order as the order they are sent in. If using UDP based connections (such as WebRTC etc.), the order of the responses is not guaranteed.
+
 ### 11.3 Acknowledgment
 
 ```
@@ -316,13 +491,44 @@ Implementers should consider:
 <-- {"jsonrpc": "3.0", "result": "Task completed", "id": 3}
 ```
 
+#### 11.3.1 Acknowledgment with Progress  (with extensions)
+
+```
+--> {"jsonrpc": "3.0", "method": "start.longTask", "params": {}, "id": 3}
+<-- {"jsonrpc": "3.0", "ack": {}, "id": 3}
+<-- {"jsonrpc": "3.0", "ack": {"progress": 10, "total": 20}, "id": 3}
+<-- {"jsonrpc": "3.0", "ack": {"progress": 20, "total": 20}, "id": 3}
+<-- {"jsonrpc": "3.0", "result": "Task completed", "id": 3}
+```
+
 ### 11.4 Stream Abort Request / Responses
+```
+--> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
+--> {"jsonrpc": "3.0", "method": "request.cancel", "params": {"stream": 2, "abort": true}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "error": {"code": -32800, "message": "Request cancelled by client."}}
+```
+
+#### 11.4.1 Stream Abort Request / Responses  (with extensions)
 ```
 --> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
 --> {"jsonrpc": "3.0", "options": {"stream": 2, "abort": true}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "error": {"code": -32800, "message": "Request cancelled by client."}}
+```
+
+#### 11.4.2 Async Stream Request / Responses in DeCentralized / P2P mode  (with extensions)
+```
+--> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": "a31dbae", "options": {"stream": true}}
+<-- {"jsonrpc": "3.0", "ack": {"id": "a31dbae", "stream": {"id": "fxr2t6", "pubServer":{"conn": "12.84.22.32:3564", "topic": "logs" }}}}
+```
+After receiving the above `ack`, the requestor subscribes to the PUB-SUB server at the above specific connection on the given topic and starts receiving the stream responses:
+```
+<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "data": "Log entry 1"}
+<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "error": {"code": -32800, "message": "Request cancelled by client."}}
 ```
 
 ---
