@@ -1,219 +1,304 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema", 
-  "$id": "https://cenacle-research.com/schemas/jsonrpc-3.0.schema.json", 
+  "$schema": "https://json-schema.org/draft/2020-12/schema ",
+  "$id": "https://cenacle-research.com/schemas/jsonrpc-3.0.schema.json",
   "title": "JSON-RPC 3.0 Message Schema",
   "description": "Schema to validate JSON-RPC 3.0 request and response messages, including streaming and enhanced error handling.",
-  "oneOf": [
-    { "$ref": "#/definitions/JsonRpcRequest" },
-    { "$ref": "#/definitions/JsonRpcSuccessResponse" },
-    { "$ref": "#/definitions/JsonRpcErrorResponse" },
-    { "$ref": "#/definitions/JsonRpcAck" },
-    { "$ref": "#/definitions/JsonRpcStreamData" },
-    { "$ref": "#/definitions/JsonRpcStreamDone" },
-    { "$ref": "#/definitions/JsonRpcStreamError" }
-  ],
-
+  "type": "object",
+  "oneOf": [{ "$ref": "#/definitions/JsonRpcRequest" }, { "$ref": "#/definitions/JsonRpcResponse" }],
   "definitions": {
     "JsonRpcVersion": {
       "type": "string",
       "enum": ["2.0", "3.0"]
     },
-
-    "JsonRpcId": {
-      "oneOf": [
-        { "type": "string" },
-        { "type": "number" },
-        { "type": "null" }
-      ],
-      "description": "Correlation ID for matching requests and responses."
-    },
-
     "ErrorCode": {
-      "type": "integer",
-      "enum": [
-        400, 401, 402, 403, 404, 405, 408, 409, 425, 429,
-        500, 501, 503, 521,
-        -32600, -32601, -32602, -32603, -32700,
-        -32800,
-        -32001, -32003, -32004, -32005, -32008, -32009,
-        -32012, -32013, -32029, -32030,
-        -32040, -32041, -32042
-      ],
-      "description": "Standardized error codes as per JSON-RPC 3.0 specification."
+      "type": "integer"
     },
-
     "ErrorContext": {
       "type": "object",
-      "required": ["code", "title"],
       "properties": {
         "code": { "$ref": "#/definitions/ErrorCode" },
         "title": { "type": "string" },
         "message": { "type": "string" },
         "data": {}
       },
-      "additionalProperties": false
+      "required": ["code", "title"]
     },
-
-    "BaseJsonRpcMessage": {
+    "ErrorContextAbort": {
+      "allOf": [{ "$ref": "#/definitions/ErrorContext" }, { "properties": { "code": { "const": 8000 } } }]
+    },
+    "JsonRpcId": {
+      "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "null" }]
+    },
+    "BaseJsonRpcVAny": {
       "type": "object",
-      "required": ["jsonrpc"],
       "properties": {
         "jsonrpc": { "$ref": "#/definitions/JsonRpcVersion" }
       },
-      "additionalProperties": false
+      "required": ["jsonrpc"]
     },
-
-    "JsonRpcRequest": {
+    "BaseJsonRpcV2": {
+      "allOf": [{ "$ref": "#/definitions/BaseJsonRpcVAny" }, { "properties": { "jsonrpc": { "const": "2.0" } } }]
+    },
+    "BaseJsonRpcV3": {
+      "allOf": [{ "$ref": "#/definitions/BaseJsonRpcVAny" }, { "properties": { "jsonrpc": { "const": "3.0" } } }]
+    },
+    "BaseJsonRpcRequest": {
       "type": "object",
+      "properties": {
+        "jsonrpc": { "$ref": "#/definitions/JsonRpcVersion" },
+        "id": { "$ref": "#/definitions/JsonRpcId" },
+        "method": { "type": "string" },
+        "params": {}
+      },
+      "required": ["jsonrpc", "method"]
+    },
+    "TOptionsStream": {
+      "type": "object",
+      "properties": {
+        "stream": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/definitions/JsonRpcId" }] },
+        "abort": { "type": "boolean" }
+      }
+    },
+    "JsonRpcRequestV3": {
       "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
+        { "$ref": "#/definitions/BaseJsonRpcRequest" },
+        { "$ref": "#/definitions/BaseJsonRpcV3" },
         {
           "type": "object",
-          "required": ["method"],
           "properties": {
-            "method": { "type": "string" },
-            "params": {},
-            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "options": { "$ref": "#/definitions/TOptionsStream" }
+          }
+        }
+      ]
+    },
+    "JsonRpcStreamRequest": {
+      "allOf": [
+        { "$ref": "#/definitions/JsonRpcRequestV3" },
+        {
+          "type": "object",
+          "properties": {
             "options": {
               "type": "object",
               "properties": {
-                "stream": {
-                  "type": ["boolean", "string", "number"],
-                  "description": "Whether this request expects a streaming response, optionally with an ID."
-                },
-                "abort": {
-                  "type": "boolean",
-                  "description": "Set to true to abort an ongoing stream."
-                }
+                "stream": { "type": "boolean", "const": true }
               },
-              "additionalProperties": false
+              "required": ["stream"]
             }
           },
-          "if": {
-            "properties": { "options": { "type": "object" } },
-            "required": ["options"]
-          }
+          "required": ["options"]
         }
       ]
     },
-
+    "JsonRpcStreamRequestAbort": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseJsonRpcV3" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "null" },
+            "options": {
+              "type": "object",
+              "properties": {
+                "stream": { "$ref": "#/definitions/JsonRpcId" },
+                "abort": { "type": "boolean", "const": true }
+              },
+              "required": ["stream", "abort"]
+            }
+          },
+          "required": ["options"],
+          "not": { "required": ["id"] }
+        }
+      ]
+    },
     "JsonRpcSuccessResponse": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
-          "type": "object",
-          "required": ["result"],
-          "properties": {
-            "id": { "$ref": "#/definitions/JsonRpcId" },
-            "result": {}
-          },
-          "oneOf": [
-            { "required": ["id"] },
-            { "not": { "required": ["id"] } }
-          ]
-        }
-      ]
+      "properties": {
+        "jsonrpc": { "$ref": "#/definitions/JsonRpcVersion" },
+        "id": { "$ref": "#/definitions/JsonRpcId" },
+        "result": {}
+      },
+      "required": ["jsonrpc", "result"],
+      "if": {
+        "properties": { "error": {} }
+      },
+      "then": {
+        "not": { "required": ["error"] }
+      }
     },
-
     "JsonRpcErrorResponse": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
-          "type": "object",
-          "required": ["error"],
-          "properties": {
-            "id": { "$ref": "#/definitions/JsonRpcId" },
-            "error": { "$ref": "#/definitions/ErrorContext" }
-          },
-          "oneOf": [
-            { "required": ["id"] },
-            { "not": { "required": ["id"] } }
-          ]
-        }
-      ]
+      "properties": {
+        "jsonrpc": { "const": "3.0" },
+        "id": { "$ref": "#/definitions/JsonRpcId" },
+        "error": { "$ref": "#/definitions/ErrorContext" }
+      },
+      "required": ["jsonrpc", "error"],
+      "if": {
+        "properties": { "result": {} }
+      },
+      "then": {
+        "not": { "required": ["result"] }
+      }
     },
-
     "JsonRpcAck": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
-          "type": "object",
-          "required": ["ack", "id"],
-          "properties": {
-            "id": { "$ref": "#/definitions/JsonRpcId" },
-            "ack": {}
-          }
-        }
-      ]
+      "properties": {
+        "jsonrpc": { "const": "3.0" },
+        "id": { "$ref": "#/definitions/JsonRpcId" },
+        "ack": {}
+      },
+      "required": ["jsonrpc", "ack"],
+      "if": {
+        "properties": { "result": {} }
+      },
+      "then": {
+        "not": { "required": ["result"] }
+      },
+      "else": {},
+      "if": {
+        "properties": { "error": {} }
+      },
+      "then": {
+        "not": { "required": ["error"] }
+      },
+      "else": {}
     },
-
     "JsonRpcStreamData": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
+      "properties": {
+        "jsonrpc": { "const": "3.0" },
+        "stream": {
           "type": "object",
-          "required": ["stream"],
           "properties": {
-            "stream": {
-              "type": "object",
-              "required": ["id"],
-              "properties": {
-                "id": { "$ref": "#/definitions/JsonRpcId" },
-                "data": {}
-              },
-              "additionalProperties": false
-            }
-          }
+            "id": { "$ref": "#/definitions/JsonRpcId" },
+            "data": {}
+          },
+          "required": ["id"]
         }
-      ]
+      },
+      "required": ["jsonrpc", "stream"],
+      "if": {
+        "properties": { "id": {} }
+      },
+      "then": {
+        "not": { "required": ["id"] }
+      },
+      "if": {
+        "properties": { "result": {} }
+      },
+      "then": {
+        "not": { "required": ["result"] }
+      },
+      "if": {
+        "properties": { "error": {} }
+      },
+      "then": {
+        "not": { "required": ["error"] }
+      }
     },
-
     "JsonRpcStreamDone": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
+      "properties": {
+        "jsonrpc": { "const": "3.0" },
+        "stream": {
           "type": "object",
-          "required": ["stream", "result"],
           "properties": {
-            "stream": {
-              "type": "object",
-              "required": ["id"],
-              "properties": {
-                "id": { "$ref": "#/definitions/JsonRpcId" }
-              },
-              "additionalProperties": false
-            },
-            "result": {}
-          }
+            "id": { "$ref": "#/definitions/JsonRpcId" }
+          },
+          "required": ["id"]
+        },
+        "result": {}
+      },
+      "required": ["jsonrpc", "stream", "result"],
+      "if": {
+        "properties": { "stream": { "properties": { "data": {} } } }
+      },
+      "then": {
+        "not": {
+          "required": ["data"]
         }
-      ]
+      },
+      "if": {
+        "properties": { "error": {} }
+      },
+      "then": {
+        "not": { "required": ["error"] }
+      },
+      "if": {
+        "properties": { "id": {} }
+      },
+      "then": {
+        "not": { "required": ["id"] }
+      }
     },
-
     "JsonRpcStreamError": {
       "type": "object",
-      "allOf": [
-        { "$ref": "#/definitions/BaseJsonRpcMessage" },
-        {
+      "properties": {
+        "jsonrpc": { "const": "3.0" },
+        "stream": {
           "type": "object",
-          "required": ["stream", "error"],
           "properties": {
-            "stream": {
-              "type": "object",
-              "required": ["id"],
-              "properties": {
-                "id": { "$ref": "#/definitions/JsonRpcId" }
-              },
-              "additionalProperties": false
-            },
-            "error": { "$ref": "#/definitions/ErrorContext" }
-          }
+            "id": { "$ref": "#/definitions/JsonRpcId" }
+          },
+          "required": ["id"]
+        },
+        "error": { "$ref": "#/definitions/ErrorContext" }
+      },
+      "required": ["jsonrpc", "stream", "error"],
+      "if": {
+        "properties": { "stream": { "properties": { "data": {} } } }
+      },
+      "then": {
+        "not": {
+          "required": ["data"]
         }
+      },
+      "if": {
+        "properties": { "result": {} }
+      },
+      "then": {
+        "not": { "required": ["result"] }
+      },
+      "if": {
+        "properties": { "id": {} }
+      },
+      "then": {
+        "not": { "required": ["id"] }
+      }
+    },
+    "JsonRpcStreamAborted": {
+      "allOf": [
+        { "$ref": "#/definitions/JsonRpcStreamError" },
+        { "properties": { "error": { "$ref": "#/definitions/ErrorContextAbort" } } }
       ]
+    },
+    "JsonRpcRequest": {
+      "oneOf": [
+        { "$ref": "#/definitions/BaseJsonRpcRequest" },
+        { "$ref": "#/definitions/JsonRpcRequestV3" },
+        { "$ref": "#/definitions/JsonRpcStreamRequest" },
+        { "$ref": "#/definitions/JsonRpcStreamRequestAbort" }
+      ]
+    },
+    "JsonRpcMethodResponse": {
+      "oneOf": [{ "$ref": "#/definitions/JsonRpcSuccessResponse" }, { "$ref": "#/definitions/JsonRpcErrorResponse" }]
+    },
+    "JsonRpcStreamResponse": {
+      "oneOf": [
+        { "$ref": "#/definitions/JsonRpcStreamData" },
+        { "$ref": "#/definitions/JsonRpcStreamDone" },
+        { "$ref": "#/definitions/JsonRpcStreamError" }
+      ]
+    },
+    "JsonRpcResponse": {
+      "oneOf": [
+        { "$ref": "#/definitions/JsonRpcAck" },
+        { "$ref": "#/definitions/JsonRpcStreamResponse" },
+        { "$ref": "#/definitions/JsonRpcMethodResponse" }
+      ]
+    },
+    "JsonRpcMessage": {
+      "oneOf": [{ "$ref": "#/definitions/JsonRpcRequest" }, { "$ref": "#/definitions/JsonRpcResponse" }]
     }
   }
 }
