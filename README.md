@@ -462,8 +462,8 @@ Upon receiving the above `ack` the  requestor connects to the jobQ (using the ab
 
 ```
 --> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 1"} }
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 2"} }
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "result": "End of logs"}
 ```
 
@@ -473,13 +473,13 @@ Upon receiving the above `ack` the  requestor connects to the jobQ (using the ab
 --> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
 --> {"jsonrpc": "3.0", "method": "listen.errors", "params": {}, "id": 5, "options": {"stream": true}}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 1"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 2"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 3"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 2"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5, "data": "Err entry 1"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5, "data": "Err entry 2"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 3"}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "result": "End of logs for Stream 2"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 3"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 5}, "data": "Err entry 5"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5, "data": "Err entry 3"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 5, "data": "Err entry 5"}}
 ```
 Multiple stream could be active at the same time, and stream responses may arrive in any order. The order of stream data chunks within a single stream, however, depends on the channel being used. For TCP based connections, such as Websocket etc., the stream responses will arrive in the same order as the order they are sent in. If using UDP based connections (such as WebRTC etc.), the order of the responses is not guaranteed.
 
@@ -504,8 +504,8 @@ Multiple stream could be active at the same time, and stream responses may arriv
 ### 11.4 Stream Abort Request / Responses
 ```
 --> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 1"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 2"}}
 --> {"jsonrpc": "3.0", "method": "request.cancel", "params": {"stream": 2, "abort": true}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "error": {"code": -32800, "message": "Request cancelled by client."}}
 ```
@@ -513,8 +513,8 @@ Multiple stream could be active at the same time, and stream responses may arriv
 #### 11.4.1 Stream Abort Request / Responses  (with extensions)
 ```
 --> {"jsonrpc": "3.0", "method": "listen.logs", "params": {}, "id": 2, "options": {"stream": true}}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 1"}
-<-- {"jsonrpc": "3.0", "stream": {"id": 2}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 1"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": 2, "data": "Log entry 2"}}
 --> {"jsonrpc": "3.0", "options": {"stream": 2, "abort": true}}
 <-- {"jsonrpc": "3.0", "stream": {"id": 2}, "error": {"code": -32800, "message": "Request cancelled by client."}}
 ```
@@ -526,8 +526,8 @@ Multiple stream could be active at the same time, and stream responses may arriv
 ```
 After receiving the above `ack`, the requestor subscribes to the PUB-SUB server at the above specific connection on the given topic and starts receiving the stream responses:
 ```
-<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "data": "Log entry 1"}
-<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "data": "Log entry 2"}
+<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6", "data": "Log entry 1"}}
+<-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6", "data": "Log entry 2"}}
 <-- {"jsonrpc": "3.0", "stream": {"id": "fxr2t6"}, "error": {"code": -32800, "message": "Request cancelled by client."}}
 ```
 
