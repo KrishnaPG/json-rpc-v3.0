@@ -12,12 +12,16 @@ Compared to JSON-RPC 2.0, this version introduces:
 
 #### Repo
 This repo contains: 
-  - a [Typescript implementation](json-rpc.ts) for reference, and
   - [JSON-Schema](jsonrpc-3.0.schema.json) file for message validation.
 
 #### NPM Package
 Available at: [https://www.npmjs.com/package/@fict/json-rpc](https://www.npmjs.com/package/@fict/json-rpc)
   - install with `npm install @fict/json-rpc`
+
+### Python Package
+Available at: [https://pypi.org/project/fict-json-rpc/](https://pypi.org/project/fict-json-rpc/)
+  - install with `pip install fict-json-rpc==0.1.0`
+  - source available at: [JSON RPC V3.0 Python](https://github.com/KrishnaPG/json-rpc-v3.0-python)
 
 ---
 
@@ -556,4 +560,4 @@ After receiving the above `ack`, the requestor subscribes to the PUB-SUB server 
 
 ## 14. Authors & Contributors
 
-This specification was derived from work by [GK Palem](https://gk.palem.in/) incorporates modern RPC design patterns. Contributions were made by engineers working on distributed systems requiring advanced RPC features beyond the scope of JSON-RPC 2.0.
+This specification was derived from the work of [GK Palem](https://gk.palem.in/) and incorporates modern RPC design patterns suitable for building large-scale LLM AI applications. Contributions were made by engineers working on distributed systems requiring advanced RPC features beyond the scope of JSON-RPC 2.0.
